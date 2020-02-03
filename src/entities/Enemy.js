@@ -1,4 +1,5 @@
 import BaseEntity from './Base';
+import font from '../font';
 
 const PLAYER_POS = {
     BOTTOM_LEFT: { x: 13, y: 42 },
@@ -43,5 +44,34 @@ export default class EnemyEntity extends BaseEntity {
         }
 
         this.setPosition(realX, realY);
+    }
+
+    drawCornerNumber() {
+        this.clearCornerNumber();
+        if (this.gridPosition.y === 0) {
+            switch (this.gridPosition.x) {
+                case 0:
+                    this.cornerText = font.drawText(25, 7, '1');
+                    break;
+                case 1:
+                    this.cornerText = font.drawText(53, 7, '2');
+                    break;
+                case 2:
+                    this.cornerText = font.drawText(80, 7, '3');
+                    break;
+            }
+        } else {
+            switch (this.gridPosition.x) {
+                case 0:
+                    this.cornerText = font.drawText(25, 19, '4');
+                    break;
+                case 1:
+                    this.cornerText = font.drawText(53, 19, '5');
+                    break;
+                case 2:
+                    this.cornerText = font.drawText(80, 19, '6');
+                    break;
+            }
+        }
     }
 }

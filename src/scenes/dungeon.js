@@ -18,8 +18,11 @@ import EnemyEntity from '../entities/Enemy';
 import fontUrl from '../assets/fonts/Gizmo199darkfont.png';
 import font from '../font.js';
 import Player from '../entities/Player';
-import PartyMember from "../entities/PartyMember";
-import Blob from "../entities/enemies/Blob";
+import PartyMember from '../entities/PartyMember';
+import Blob from '../entities/enemies/Blob';
+import Skull from '../entities/enemies/Skull';
+import PlayerCellSelector from '../entities/PlayerCellSelector';
+import EnemyCellSelector from '../entities/EnemyCellSelector';
 
 const keynameMap = {
     ONE: 1,
@@ -39,98 +42,77 @@ export default class Dungeon extends Phaser.Scene {
     _turn = 'player';
     _select_text = [];
     _keys = {};
+    keys = [];
     levelData = null;
     bg = null;
     overlay = null;
     selectedPlayer = null;
+    selectedAction = null;
+    static SELECT_PHASE_PLAYER = 'player';
+    static SELECT_PHASE_PLAYER_ACTION = 'player_action';
+    static SELECT_PHASE_PLAYER_TARGET = 'player_target';
+    static SELECT_PHASE_ENEMY = 'enemy';
+    static SELECT_PHASE_ENEMY_ACTION = 'enemy_action';
+    static SELECT_PHASE_ENEMY_TARGET = 'enemy_move';
 
     get select_phase() {
         return this._select_phase;
     }
     set select_phase(newVal) {
-        if (newVal !== this._select_phase) {
-            this._select_phase = newVal;
-            this._select_text.forEach(sprite => {
-                sprite.destroy();
-            });
-
-            switch (this._select_phase) {
-                case 'player':
-                    this.overlay && this.overlay.destroy();
-                    this.overlay = null;
-
-                    this._select_text = this._select_text.concat(
-                        font.drawText(25, 31, '1')
-                    );
-                    this._select_text = this._select_text.concat(
-                        font.drawText(53, 31, '2')
-                    );
-                    this._select_text = this._select_text.concat(
-                        font.drawText(80, 31, '3')
-                    );
-
-                    this._select_text = this._select_text.concat(
-                        font.drawText(25, 44, '4')
-                    );
-                    this._select_text = this._select_text.concat(
-                        font.drawText(53, 44, '5')
-                    );
-                    this._select_text = this._select_text.concat(
-                        font.drawText(80, 44, '6')
-                    );
-                    break;
-                case 'enemy':
-                    this.overlay && this.overlay.destroy();
-                    this.overlay = null;
-
-                    this._select_text = this._select_text.concat(
-                        font.drawText(25, 7, '1')
-                    );
-                    this._select_text = this._select_text.concat(
-                        font.drawText(53, 7, '2')
-                    );
-                    this._select_text = this._select_text.concat(
-                        font.drawText(80, 7, '3')
-                    );
-
-                    this._select_text = this._select_text.concat(
-                        font.drawText(25, 19, '4')
-                    );
-                    this._select_text = this._select_text.concat(
-                        font.drawText(53, 19, '5')
-                    );
-                    this._select_text = this._select_text.concat(
-                        font.drawText(80, 19, '6')
-                    );
-                    break;
-                case 'action':
-                    const overlayKey =
-                        this.levelData.enemies
-                            .filter(e => !e.alive)
-                            .concat(this.levelData.player.filter(p => !p.alive))
-                            .length && this.selectedPlayer instanceof Player
-                            ? 'selectActionReap'
-                            : 'selectAction';
-                    this.overlay = this.add.image(0, 0, overlayKey);
-                    this.overlay.setOrigin(0, 0);
-                    this.overlay.setDepth(Infinity);
-                    break;
-            }
+        if (newVal === this._select_phase) {
+            return;
         }
-    }
-
-    get keys() {
-        let keys = [];
-        Object.entries(this._keys).forEach(key => {
-            const keyname = keynameMap[key[0].replace('NUMPAD_', '')];
-            if (keys[keyname] !== undefined && keys[keyname] === true) {
-                return;
-            }
-
-            keys[keyname] = key[1].isDown;
+        this._select_phase = newVal;
+        this._select_text.forEach(sprite => {
+            sprite.destroy();
         });
+        this.overlay && this.overlay.destroy();
+        this.overlay = null;
 
-        return keys;
+        this.levelData.enemies
+            .concat(this.levelData.player)
+            .forEach(e => e.clearCornerNumber());
+        switch (this._select_phase) {
+            case SELECT_PHASE_PLAYER:
+                this.levelData.player.forEach(p => p.drawCornerNumber());
+                break;
+            case SELECT_PHASE_PLAYER_TARGET:
+                if (this.selectedAction === 'move') {
+                    this.levelData.player_cells.filter(pc => {
+                        return !this.levelData.player.some(
+                            p =>
+                                p.gridPosition.x === pc.gridPosition.x &&
+                                p.gridPosition.y === pc.gridPosition.y
+                        );
+                    }).forEach((pc) => (pc.drawCornerNumber()));
+                }
+                else if (this.selectedAction === 'attack') {
+                    this.levelData.enemies.forEach((enemy) => {
+                        if (this.selectedPlayer.gridPosition.y === 0 || enemy.gridPosition.y === 1) {
+                            enemy.drawCornerNumber()
+                        }
+                    })
+                }
+                else if (this.selectedAction === 'reap') {
+                    this.levelData.player.filter((p) => p.health === 1 && p !== this.selectedPlayer).forEach((p) => p.drawCornerNumber())
+                }
+                break;
+            case SELECT_PHASE_ENEMY:
+                this.levelData.enemies.forEach(e => e.drawCornerNumber());
+                this.overlay && this.overlay.destroy();
+                this.overlay = null;
+                break;
+            case SELECT_PHASE_PLAYER_ACTION:
+                const overlayKey =
+                    this.levelData.player.filter(p => p.health === 1).length &&
+                    this.selectedPlayer instanceof Player
+                        ? 'selectActionReap'
+                        : 'selectAction';
+                this.overlay = this.add.image(0, 0, overlayKey);
+                this.overlay.setOrigin(0, 0);
+                this.overlay.setDepth(Infinity);
+                break;
+        }
     }
 
     preload() {
@@ -157,33 +139,52 @@ export default class Dungeon extends Phaser.Scene {
 
     initLevel() {
         font.init(this);
-        this.select_phase = 'player';
-        return {
-            player: [new Player(this, 1, 0), new PartyMember(this, 0, 0)],
+        this.bg = this.add.image(0, 0, 'dungeon');
+        this.levelData = {
+            player: [new Player(this, 1, 1), new PartyMember(this, 0, 0)],
             enemies: [
-                new Blob(this, 0, 0),
-                new Blob(this, 0, 1),
+                //new Blob(this, 0, 0),
+                //new Blob(this, 0, 1),
+                new Skull(this, 2, 0),
                 new Blob(this, 1, 0),
-                new Blob(this, 1, 1),
-                new Blob(this, 2, 0),
-                new Blob(this, 2, 1),
+                //new Blob(this, 2, 0),
+                //new Blob(this, 2, 1),
+            ],
+            player_cells: [
+                new PlayerCellSelector(this, 0, 0),
+                new PlayerCellSelector(this, 0, 1),
+                new PlayerCellSelector(this, 1, 0),
+                new PlayerCellSelector(this, 1, 1),
+                new PlayerCellSelector(this, 2, 0),
+                new PlayerCellSelector(this, 2, 1),
+            ],
+            enemy_cells: [
+                new EnemyCellSelector(this, 0, 0),
+                new EnemyCellSelector(this, 0, 1),
+                new EnemyCellSelector(this, 1, 0),
+                new EnemyCellSelector(this, 1, 1),
+                new EnemyCellSelector(this, 2, 0),
+                new EnemyCellSelector(this, 2, 1),
             ],
         };
+        this.select_phase = SELECT_PHASE_PLAYER;
     }
 
     create() {
-        this.bg = this.add.image(0, 0, 'dungeon');
-        this.levelData = this.initLevel();
         //this.levelData.enemies[0].hurt(3);
         font.init(this);
+        this.initLevel();
         this.bg.setOrigin(0, 0);
         this._keys = this.input.keyboard.addKeys(
             'ONE,NUMPAD_ONE,TWO,NUMPAD_TWO,THREE,NUMPAD_THREE,FOUR,NUMPAD_FOUR,FIVE,NUMPAD_FIVE,SIX,NUMPAD_SIX,SEVEN,NUMPAD_SEVEN,EIGHT,NUMPAD_EIGHT,NINE,NUMPAD_NINE,ZERO,NUMPAD_ZERO',
-            true
+            true,
+            false
         );
+        console.log(this._keys);
     }
 
     update(time, delta) {
+        this.updateInput();
         switch (this._turn) {
             case 'player':
                 this.updatePlayerTurn();
@@ -191,10 +192,16 @@ export default class Dungeon extends Phaser.Scene {
             case 'enemy':
                 this.updateEnemyTurn();
                 break;
-            case 'action':
-                this.updateActionSelect();
-                break;
         }
+    }
+
+    updateInput() {
+        this.keys = [];
+        Object.entries(this._keys).forEach(([name, key]) => {
+            if (Phaser.Input.Keyboard.JustDown(key)) {
+                this.keys[keynameMap[name.replace('NUMPAD_', '')]] = true;
+            }
+        });
     }
 
     updatePlayerTurn() {
@@ -203,14 +210,22 @@ export default class Dungeon extends Phaser.Scene {
             return;
         }
 
-        let player = this.levelData.player.find(p => {
-            return p.gridPosition.x + p.gridPosition.y * 3 + 1 === index;
-        });
-
-        if (player) {
-            player.selected = true;
-            this.selectedPlayer = player;
-            this.select_phase = 'action';
+        switch (this.select_phase) {
+            case SELECT_PHASE_PLAYER:
+                let player = this.levelData.player.find(p => {
+                    return (
+                        p.gridPosition.x + p.gridPosition.y * 3 + 1 === index
+                    );
+                });
+                player.selected = true;
+                this.selectedPlayer = player;
+                this.select_phase = SELECT_PHASE_PLAYER_ACTION;
+                break;
+            case SELECT_PHASE_PLAYER_ACTION:
+                this.updateActionSelect();
+                break;
+            case SELECT_PHASE_PLAYER_TARGET:
+                this.updateTargetSelect();
         }
     }
 
@@ -220,21 +235,69 @@ export default class Dungeon extends Phaser.Scene {
             return;
         }
 
+        // TODO: don't allow move if not possible! Needs new sprite!
         if (index === 1) {
-            this._select_phase = 'player_move';
+            this.selectedAction = 'move';
+            this.select_phase = SELECT_PHASE_PLAYER_TARGET;
         }
 
+        // TODO: don't allow attack if not possible! Needs new sprite!
         if (index === 2) {
-            this.select_phase = 'enemy';
+            this.selectedAction = 'attack';
+            this.select_phase = SELECT_PHASE_PLAYER_TARGET;
         }
 
-        if (this.overlay.texture.key.toLowerCase.includes('reap')) {
-            if (index === 3) {
-                //const overlayKey = this.levelData.enemies.filter((e) => !e.alive).concat(true ? 'selectActionReap' : 'selectAction');
+        console.log(this.overlay.texture);
+        if (
+            index === 3 &&
+            this.selectedPlayer instanceof Player &&
+            this.overlay.texture.key.toLowerCase().includes('reap')
+        ) {
+            this.selectedAction = 'reap';
+            this.select_phase = SELECT_PHASE_PLAYER_TARGET;
+        }
+    }
 
-                if (this.levelData.player.some(p => !p.alive)) {
-                }
-            }
+    updateTargetSelect() {
+        let index = this.keys.findIndex(isDown => isDown);
+        if (index < 0) {
+            return;
+        }
+
+        let target;
+
+        switch (this.selectedAction) {
+            case 'move':
+                target = this.levelData.player_cells.find(p => {
+                    return (
+                        p.gridPosition.x + p.gridPosition.y * 3 + 1 === index
+                    );
+                });
+                this.selectedPlayer.gridPosition.x = target.gridPosition.x;
+                this.selectedPlayer.gridPosition.y = target.gridPosition.y;
+            break;
+            case 'attack':
+                target = this.levelData.enemies.find(e => {
+                    return (
+                        e.gridPosition.x + e.gridPosition.y * 3 + 1 === index
+                    );
+                });
+                target.hurt(this.selectedPlayer.str);
+            break;
+            case 'reap':
+                target = this.levelData.player.find(p => {
+                    return p.gridPosition.x + p.gridPosition.y * 3 + 1 === index
+                });
+                this.selectedPlayer.reap(target);
         }
     }
 }
+
+const {
+    SELECT_PHASE_PLAYER,
+    SELECT_PHASE_PLAYER_ACTION,
+    SELECT_PHASE_PLAYER_TARGET,
+    SELECT_PHASE_ENEMY,
+    SELECT_PHASE_ENEMY_ACTION,
+    SELECT_PHASE_ENEMY_TARGET,
+} = Dungeon;

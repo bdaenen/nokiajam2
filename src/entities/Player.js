@@ -4,8 +4,8 @@ import BaseEntity from './Base';
 export default class Player extends BaseEntity {
     power = 0;
 
-    constructor(scene, x, y, texture) {
-        super(scene, x, y, texture);
+    constructor(scene, x, y, texture, frame) {
+        super(scene, x, y, texture, frame);
         this.setTexture('death');
         this.maxHealth = 4;
     }

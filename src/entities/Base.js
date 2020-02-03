@@ -17,6 +17,8 @@ export default class BaseEntity extends Phaser.GameObjects.Sprite {
         this.selectedBg = null;
         this.moveTo(this.gridPosition.x, this.gridPosition.y);
         this.setTexture('death');
+        this.cornerText = [];
+        this.str = 1;
 
         scene.add.existing(this);
 
@@ -49,7 +51,6 @@ export default class BaseEntity extends Phaser.GameObjects.Sprite {
         }
 
         return this;
-        return this;
     }
 
     get selected() {
@@ -60,9 +61,9 @@ export default class BaseEntity extends Phaser.GameObjects.Sprite {
         this._selected = !!selected;
 
         if (this._selected) {
-            this.selectedBg = this.scene.add.image(this.x-1, this.y-1, 'selected');
+            /*this.selectedBg = this.scene.add.image(this.x-1, this.y-1, 'selected');
             this.selectedBg.setDepth(0);
-            this.setDepth(1);
+            this.setDepth(1);*/
         }
 
         return this;
@@ -118,5 +119,40 @@ export default class BaseEntity extends Phaser.GameObjects.Sprite {
 
     hurt(damage) {
         this.health = Math.max(0, this.health - damage);
+    }
+
+    clearCornerNumber() {
+        this.cornerText.length && this.cornerText[0].destroy();
+        this.cornerText.length = 0;
+    }
+
+    drawCornerNumber() {
+        this.clearCornerNumber();
+        if (this.gridPosition.y === 0) {
+            switch (this.gridPosition.x) {
+                case 0:
+                    this.cornerText = font.drawText(25, 31, '1');
+                    break;
+                case 1:
+                    this.cornerText = font.drawText(53, 31, '2');
+                    break;
+                case 2:
+                    this.cornerText = font.drawText(80, 31, '3');
+                    break;
+            }
+        }
+        else {
+            switch (this.gridPosition.x) {
+                case 0:
+                    this.cornerText = font.drawText(25, 44, '4');
+                    break;
+                case 1:
+                    this.cornerText = font.drawText(53, 44, '5');
+                    break;
+                case 2:
+                    this.cornerText = font.drawText(80, 44, '6');
+                    break;
+            }
+        }
     }
 }
