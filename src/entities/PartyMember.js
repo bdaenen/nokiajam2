@@ -1,4 +1,3 @@
-import Phaser from 'phaser';
 import BaseEntity from './Base';
 
 export default class PartyMember extends BaseEntity {
@@ -6,13 +5,16 @@ export default class PartyMember extends BaseEntity {
         super(scene, x, y, texture, frame);
         this.setTexture('partymember');
         this.maxHealth = 3;
-        this.hurt(2)
     }
 
+    kill() {
+        this.heartSprite.destroy();
+        this.alive = false;
+    }
     hurt(damage) {
-        super.hurt(damage);
-        if (this.health < 2) {
+        if (this.health-damage < 2) {
             this.setTexture('partymember_hurt')
         }
+        return super.hurt(damage);
     }
 }

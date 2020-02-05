@@ -1,14 +1,5 @@
 import font from '../font';
 
-const PLAYER_POS = {
-    BOTTOM_LEFT: { x: 13, y: 42 },
-    BOTTOM_CENTER: { x: 44, y: 42 },
-    BOTTOM_RIGHT: { x: 72, y: 42 },
-    TOP_LEFT: { x: 13, y: 30 },
-    TOP_CENTER: { x: 44, y: 30 },
-    TOP_RIGHT: { x: 72, y: 30 },
-};
-
 export default class BaseEntity extends Phaser.GameObjects.Sprite {
     constructor(scene, x, y, texture, frame) {
         super(scene, x, y, texture, frame);
@@ -19,6 +10,8 @@ export default class BaseEntity extends Phaser.GameObjects.Sprite {
         this.setTexture('death');
         this.cornerText = [];
         this.str = 1;
+        this.attackSprite = null;
+        this._acted = false;
 
         scene.add.existing(this);
 
@@ -27,13 +20,31 @@ export default class BaseEntity extends Phaser.GameObjects.Sprite {
 
         this.healthSprites = [];
         font.init(this.scene);
-        this.healthText = font.drawText(
-            this.x - 9,
-            this.y + 2,
-            this.health.toString()
-        );
-        this.heartSprite = this.scene.add.image(this.x - 8, this.y - 3, 'heart');
+        this.heartSprite = this.scene.add.image(this.x - 9, this.y - 3, 'heart');
+        this.updateHealthSprite();
         this._selected = false;
+    }
+
+    updateHealthSprite() {
+        this.heartSprite.setPosition(this.x - 9, this.y - 3);
+        this.healthSprites.forEach(hs => hs.destroy());
+        this.healthSprites.length = 0;
+        for (let i = 0; i < this.health; i++) {
+            let x = this.heartSprite.x-2+(i%4*2);
+            let y = this.heartSprite.y+4 + (Math.floor(i/4) * 2);
+            this.healthSprites.push(this.scene.add.image(x, y, 'health'))
+        }
+    }
+
+    get acted() {
+        if (this.alive) {
+            return this._acted;
+        }
+        return true;
+    }
+
+    set acted(acted) {
+        this._acted = acted;
     }
 
     get health() {
@@ -41,15 +52,12 @@ export default class BaseEntity extends Phaser.GameObjects.Sprite {
     }
 
     set health(health) {
-        this._health = health;
-        this.healthText.forEach(sprite => sprite.destroy());
+        this._health = Math.min(this.maxHealth, health);
         if (this._health <= 0) {
             this.kill()
         }
-        else {
-            this.healthText = font.drawText(this.x - 9, this.y + 2, health.toString());
-        }
 
+        this.updateHealthSprite();
         return this;
     }
 
@@ -93,7 +101,7 @@ export default class BaseEntity extends Phaser.GameObjects.Sprite {
                 realX = 13;
                 break;
             case 1:
-                realX = 44;
+                realX = 43;
                 break;
             case 2:
                 realX = 72;
@@ -112,47 +120,49 @@ export default class BaseEntity extends Phaser.GameObjects.Sprite {
             default:
                 throw new Error('Invalid Y pos');
         }
-
+        if (this.heartSprite) {
+            window.tweening = true;
+            this.scene.tweens.add({
+                targets: [this],
+                x: realX,
+                y: realY,
+                duration: 500,
+                onUpdate: () => {
+                    this.updateHealthSprite();
+                },
+                onComplete: () => {
+                    window.tweening = false;
+                }
+            });
+        }
+        else {
+            this.setPosition(realX, realY);
+        }
         this.gridPosition = {x, y};
-        this.setPosition(realX, realY);
     }
 
     hurt(damage) {
         this.health = Math.max(0, this.health - damage);
+        return this;
     }
 
-    clearCornerNumber() {
-        this.cornerText.length && this.cornerText[0].destroy();
-        this.cornerText.length = 0;
-    }
-
-    drawCornerNumber() {
-        this.clearCornerNumber();
-        if (this.gridPosition.y === 0) {
-            switch (this.gridPosition.x) {
-                case 0:
-                    this.cornerText = font.drawText(25, 31, '1');
-                    break;
-                case 1:
-                    this.cornerText = font.drawText(53, 31, '2');
-                    break;
-                case 2:
-                    this.cornerText = font.drawText(80, 31, '3');
-                    break;
+    attack(target) {
+        this.attackSprite = this.scene.add.sprite(this.x, this.y, 'sword');
+        this.attackSprite.rotation = Phaser.Math.Angle.BetweenPoints(this.attackSprite, target) + Math.PI/2;
+        window.tweening = true;
+        this.scene.tweens.add({
+            targets: this.attackSprite,
+            x: target.x,
+            y: target.y,
+            duration: 250,
+            repeat: 0,
+            yoyo: false,
+            onComplete: () => {
+                window.tweening = false;
+                this.attackSprite.destroy();
+                this.attackSprite = null;
+                target.hurt(this.str);
             }
-        }
-        else {
-            switch (this.gridPosition.x) {
-                case 0:
-                    this.cornerText = font.drawText(25, 44, '4');
-                    break;
-                case 1:
-                    this.cornerText = font.drawText(53, 44, '5');
-                    break;
-                case 2:
-                    this.cornerText = font.drawText(80, 44, '6');
-                    break;
-            }
-        }
+        });
     }
 }
